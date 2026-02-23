@@ -13,6 +13,7 @@ from bot.keyboards import (
     products_confirmation_keyboard,
     warehouse_keyboard,
     product_pick_keyboard,
+    document_type_keyboard,
 )
 from config import TEMP_DIR, IIKO_DEFAULT_STORE_ID
 
@@ -87,9 +88,12 @@ def format_confirmation_message(
     iiko_matches: dict,
     supplier_from_pdf: str | None = None,
     supplier_matched: dict | None = None,
+    document_type: str = "invoice",
 ) -> str:
     """Формирует сообщение для проверки пользователем."""
-    lines = ["📋 Распознанные товары (проверьте и нажмите Подтвердить или Отмена):\n"]
+    doc_label = "Счёт-фактура" if document_type == "invoice" else "Договор"
+    lines = [f"📄 {doc_label}\n"]
+    lines.append("📋 Распознанные товары (проверьте и нажмите Подтвердить или Отмена):\n")
 
     if supplier_from_pdf:
         if supplier_matched:
@@ -139,6 +143,30 @@ def _parse_date_input(text: str) -> str | None:
     return None
 
 
+async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /upload — выбор типа документа и ожидание PDF."""
+    context.user_data.pop("document_type", None)
+    await update.message.reply_text(
+        "📤 Выберите тип документа:",
+        reply_markup=document_type_keyboard(),
+    )
+
+
+async def handle_document_type_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработка выбора типа документа (Счёт-фактура / Договор)."""
+    query = update.callback_query
+    if not query or not query.data or not query.data.startswith("doc_type:"):
+        return
+    doc_type = query.data.replace("doc_type:", "").strip()
+    if doc_type not in ("invoice", "contract"):
+        await query.answer("Неизвестный тип.", show_alert=True)
+        return
+    context.user_data["document_type"] = doc_type
+    await query.answer()
+    label = "счёт-фактуру" if doc_type == "invoice" else "договор"
+    await query.edit_message_text(f"📎 Отправьте PDF файл {label}.")
+
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработка полученного PDF документа."""
     if not update.message or not update.message.document:
@@ -149,7 +177,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("❌ Пожалуйста, отправьте файл в формате PDF.")
         return
 
-    await update.message.reply_text("⏳ Обрабатываю PDF...")
+    doc_type = context.user_data.get("document_type", "invoice")
+    context.user_data["pending_document_type"] = doc_type
+    label = "счёт-фактуры" if doc_type == "invoice" else "договора"
+    await update.message.reply_text(f"⏳ Обрабатываю PDF {label}...")
 
     try:
         file = await context.bot.get_file(doc.file_id)
@@ -209,6 +240,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             products, iiko_matches,
             supplier_from_pdf=supplier_from_pdf,
             supplier_matched=supplier_matched,
+            document_type=doc_type,
         )
         text += "\n\nПодтвердите список товаров и нажмите «Подтвердить» для продолжения."
         msg_ids = await _send_long_message(
@@ -326,10 +358,12 @@ def _format_products_message(context: ContextTypes.DEFAULT_TYPE) -> str:
     iiko_matches = context.user_data.get("pending_iiko_matches", {})
     supplier_from_pdf = context.user_data.get("pending_supplier_name")
     supplier_matched = context.user_data.get("pending_supplier_matched")
+    doc_type = context.user_data.get("pending_document_type", "invoice")
     return format_confirmation_message(
         products, iiko_matches,
         supplier_from_pdf=supplier_from_pdf,
         supplier_matched=supplier_matched,
+        document_type=doc_type,
     )
 
 

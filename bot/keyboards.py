@@ -51,6 +51,14 @@ def fix_product_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def document_type_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора типа документа после /upload."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📄 Счёт-фактура", callback_data="doc_type:invoice")],
+        [InlineKeyboardButton("📋 Договор", callback_data="doc_type:contract")],
+    ])
+
+
 def edit_item_keyboard(product_index: int) -> InlineKeyboardMarkup:
     """Клавиатура для редактирования конкретного товара."""
     return InlineKeyboardMarkup([

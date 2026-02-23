@@ -18,6 +18,8 @@ def _extract_supplier_from_text(text: str) -> str | None:
         r"seller\s*[:\s]+([^\n]+)",
         r"поставщик\s*[:\s]+([^\n]+)",
         r"продавец\s*\n\s*([^\n]+)",
+        r'["«]([^"»]+)["»]\s*[^\n]*именуемое[^\n]*исполнитель',
+        r"исполнитель[^\n]*[«\"]([^»\"]+)[»\"]",
     ]
     for pattern in markers:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -86,7 +88,9 @@ def _find_column_indices(header_row: list) -> dict:
     }
     row_lower = [str(c or "").lower() for c in header_row]
     for i, cell in enumerate(row_lower):
-        if "наименование" in cell and "товар" in cell:
+        if cell.strip() == "№" or (len(cell) <= 3 and "№" in cell):
+            indices["num"] = i
+        elif "наименование" in cell and ("товар" in cell or "услуг" in cell):
             indices["name"] = i
         elif "ед" in cell or "измер" in cell:
             indices["unit"] = i
@@ -98,7 +102,9 @@ def _find_column_indices(header_row: list) -> dict:
             indices["cost_vat"] = i
         elif "стоимость" in cell and "ндс" in cell:
             indices["cost_vat"] = i
-        elif "идентификацион" in cell or "код" in cell:
+        elif "стоимость" in cell and "поставки" in cell and "учётом" in cell:
+            indices["cost_vat"] = i
+        elif "идентификацион" in cell or ("код" in cell and "штрих" not in cell):
             indices["code"] = i
     return indices
 
@@ -132,17 +138,21 @@ def parse_invoice_pdf(pdf_path: str | Path) -> dict:
                     if not row:
                         continue
 
-                    # Заголовок: строка с "наименование" и "количество"
+                    # Заголовок: строка с "наименование" и ("количество" или "кол-во")
+                    # Требуем несколько колонок, чтобы не принять объединённую ячейку договора
                     non_empty = sum(1 for c in row if c and str(c).strip())
                     row_str = " ".join(str(c or "").lower() for c in row)
-                    if non_empty >= 4 and "наименование" in row_str and "количество" in row_str:
+                    has_name = "наименование" in row_str
+                    has_qty = "количество" in row_str or "кол-во" in row_str
+                    if non_empty >= 3 and has_name and has_qty:
                         col_indices = _find_column_indices(row)
                         continue
 
-                    if not _is_product_row(row):
+                    if col_indices is None:
                         continue
 
-                    if col_indices is None:
+                    num_col = col_indices.get("num", 0)
+                    if not _is_product_row(row, num_col=num_col):
                         continue
 
                     # Индексы по умолчанию для типичной счет-фактуры

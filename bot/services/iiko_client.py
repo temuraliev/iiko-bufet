@@ -40,6 +40,9 @@ class IikoClient:
     # Типы, которые являются группами (категориями), а не товарами для поставки
     _PRODUCT_GROUP_TYPES = {"products", "productgroup"}
 
+    # Только эти типы — реальные товары, которые можно добавить в приходную накладную
+    _VALID_PRODUCT_TYPES = {"goods", "dish", "prepared", "service", "modifier"}
+
     # Папки, которые полностью игнорируем при поиске (товары из них не показываются)
     _EXCLUDED_GROUP_NAMES = (
         "yandex",
@@ -113,7 +116,9 @@ class IikoClient:
             if not name:
                 continue
             product_type_raw = (product.findtext("productType") or "").strip()
-            if product_type_raw.lower() in self._PRODUCT_GROUP_TYPES:
+            pt = product_type_raw.lower()
+            # Только реальные товары (GOODS, DISH и т.д.), не группы (PRODUCTS, ProductGroup)
+            if pt not in self._VALID_PRODUCT_TYPES:
                 continue
             if prod_id in excluded_ids:
                 continue

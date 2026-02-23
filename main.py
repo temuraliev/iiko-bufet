@@ -14,6 +14,8 @@ from telegram.ext import (
 from config import TELEGRAM_BOT_TOKEN
 from bot.handlers.document import (
     handle_document,
+    handle_upload,
+    handle_document_type_choice,
     handle_extra_input,
     handle_warehouse_selection,
     handle_confirm_products,
@@ -35,13 +37,11 @@ async def start(update: Update, context) -> None:
     """Команда /start."""
     context.user_data.clear()
     await update.message.reply_text(
-        "👋 Привет! Я бот для обработки счетов-фактур.\n\n"
-        "Отправьте мне PDF файл счёта-фактуры, и я:\n"
+        "👋 Привет! Я бот для обработки счетов-фактур и договоров.\n\n"
+        "Команда /upload — выбрать тип документа и загрузить PDF.\n"
         "• Извлеку товары из документа\n"
         "• Найду их в вашей базе iiko\n"
-        "• Покажу результат для проверки\n"
-        "• Добавлю поставку после вашего подтверждения\n\n"
-        "📎 Отправьте PDF файл для начала.\n"
+        "• Добавлю поставку после подтверждения\n\n"
         "Команда /iiko — проверка подключения и номенклатура."
     )
 
@@ -54,10 +54,12 @@ def main() -> None:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("upload", handle_upload))
     app.add_handler(CommandHandler("iiko", handle_iiko_status))
     app.add_handler(CommandHandler("iiko_orgs", handle_iiko_orgs))
     app.add_handler(MessageHandler(filters.Document.PDF, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_extra_input))
+    app.add_handler(CallbackQueryHandler(handle_document_type_choice, pattern="^doc_type:"))
     app.add_handler(CallbackQueryHandler(handle_warehouse_selection, pattern="^warehouse:"))
     app.add_handler(CallbackQueryHandler(handle_confirm_supply, pattern="^confirm_supply$"))
     app.add_handler(CallbackQueryHandler(handle_confirm_products, pattern="^confirm_products$"))
