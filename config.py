@@ -52,6 +52,14 @@ def get_warehouses_config() -> list[dict]:
 # Режим только чтение — бот не создаёт поставки в iiko
 IIKO_READ_ONLY = os.getenv("IIKO_READ_ONLY", "true").lower() in ("true", "1", "yes")
 
+# Разрешённые Telegram-юзернеймы (без @, в нижнем регистре)
+ALLOWED_USERNAMES: set[str] = {
+    "timik_aliev",
+    "gonzo_daud",
+    "fantom1934",
+    "volnik_343",
+}
+
 # Temporary files
 TEMP_DIR = Path(os.getenv("TEMP_DIR", "temp"))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)

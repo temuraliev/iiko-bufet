@@ -56,6 +56,49 @@ def document_type_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📄 Счёт-фактура", callback_data="doc_type:invoice")],
         [InlineKeyboardButton("📋 Договор", callback_data="doc_type:contract")],
+        [InlineKeyboardButton("📊 Эксель", callback_data="doc_type:excel")],
+    ])
+
+
+def unit_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора единицы измерения для нового товара."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("кг", callback_data="add_unit:кг"),
+            InlineKeyboardButton("шт", callback_data="add_unit:шт"),
+            InlineKeyboardButton("л", callback_data="add_unit:л"),
+        ],
+        [InlineKeyboardButton("❌ Отмена", callback_data="add_cancel")],
+    ])
+
+
+def group_keyboard(groups: list[dict], page: int = 0, page_size: int = 8) -> InlineKeyboardMarkup:
+    """Клавиатура выбора группы (категории) для нового товара с пагинацией."""
+    start = page * page_size
+    end = start + page_size
+    page_groups = groups[start:end]
+    buttons = []
+    for g in page_groups:
+        label = (g.get("name") or "?")[:40]
+        buttons.append([InlineKeyboardButton(label, callback_data=f"add_group:{g['id']}")])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"add_groups_page:{page - 1}"))
+    if end < len(groups):
+        nav.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"add_groups_page:{page + 1}"))
+    if nav:
+        buttons.append(nav)
+    buttons.append([InlineKeyboardButton("❌ Отмена", callback_data="add_cancel")])
+    return InlineKeyboardMarkup(buttons)
+
+
+def add_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура подтверждения создания нового товара."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Создать", callback_data="add_confirm"),
+            InlineKeyboardButton("❌ Отмена", callback_data="add_cancel"),
+        ],
     ])
 
 

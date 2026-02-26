@@ -1,4 +1,4 @@
-"""Document (PDF) handlers and multi-step flow (date, comment, warehouse)."""
+"""Document (PDF/XLSX) handlers and multi-step flow (date, comment, warehouse)."""
 import logging
 from datetime import datetime
 
@@ -6,8 +6,10 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from bot.services.pdf_parser import parse_invoice_pdf
+from bot.services.excel_parser import parse_excel
 from bot.services.iiko_client import IikoClient
 from bot.services.product_mappings import get_mapping, remove_mapping
+from bot.handlers.add_product import handle_add_name_input
 from bot.keyboards import (
     confirmation_keyboard,
     products_confirmation_keyboard,
@@ -91,7 +93,8 @@ def format_confirmation_message(
     document_type: str = "invoice",
 ) -> str:
     """Формирует сообщение для проверки пользователем."""
-    doc_label = "Счёт-фактура" if document_type == "invoice" else "Договор"
+    doc_labels = {"invoice": "Счёт-фактура", "contract": "Договор", "excel": "Эксель"}
+    doc_label = doc_labels.get(document_type, "Документ")
     lines = [f"📄 {doc_label}\n"]
     lines.append("📋 Распознанные товары (проверьте и нажмите Подтвердить или Отмена):\n")
 
@@ -153,41 +156,49 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def handle_document_type_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка выбора типа документа (Счёт-фактура / Договор)."""
+    """Обработка выбора типа документа (Счёт-фактура / Договор / Эксель)."""
     query = update.callback_query
     if not query or not query.data or not query.data.startswith("doc_type:"):
         return
     doc_type = query.data.replace("doc_type:", "").strip()
-    if doc_type not in ("invoice", "contract"):
+    if doc_type not in ("invoice", "contract", "excel"):
         await query.answer("Неизвестный тип.", show_alert=True)
         return
     context.user_data["document_type"] = doc_type
     await query.answer()
-    label = "счёт-фактуру" if doc_type == "invoice" else "договор"
-    await query.edit_message_text(f"📎 Отправьте PDF файл {label}.")
+    labels = {"invoice": "счёт-фактуру (PDF)", "contract": "договор (PDF)", "excel": "файл Excel (.xlsx)"}
+    await query.edit_message_text(f"📎 Отправьте {labels[doc_type]}.")
 
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка полученного PDF документа."""
+    """Обработка полученного PDF/XLSX документа."""
     if not update.message or not update.message.document:
         return
 
     doc = update.message.document
-    if not doc.file_name or not doc.file_name.lower().endswith(".pdf"):
-        await update.message.reply_text("❌ Пожалуйста, отправьте файл в формате PDF.")
+    fname = (doc.file_name or "").lower()
+    is_pdf = fname.endswith(".pdf")
+    is_xlsx = fname.endswith(".xlsx") or fname.endswith(".xls")
+
+    if not is_pdf and not is_xlsx:
+        await update.message.reply_text("❌ Пожалуйста, отправьте файл PDF или Excel (.xlsx).")
         return
 
-    doc_type = context.user_data.get("document_type", "invoice")
+    doc_type = context.user_data.get("document_type", "excel" if is_xlsx else "invoice")
     context.user_data["pending_document_type"] = doc_type
-    label = "счёт-фактуры" if doc_type == "invoice" else "договора"
-    await update.message.reply_text(f"⏳ Обрабатываю PDF {label}...")
+    file_label = "Excel" if is_xlsx else "PDF"
+    await update.message.reply_text(f"⏳ Обрабатываю {file_label} файл...")
 
     try:
         file = await context.bot.get_file(doc.file_id)
-        temp_path = TEMP_DIR / f"{update.effective_user.id}_{doc.file_id}.pdf"
+        ext = ".xlsx" if is_xlsx else ".pdf"
+        temp_path = TEMP_DIR / f"{update.effective_user.id}_{doc.file_id}{ext}"
         await file.download_to_drive(temp_path)
 
-        parsed = parse_invoice_pdf(temp_path)
+        if is_xlsx:
+            parsed = parse_excel(temp_path)
+        else:
+            parsed = parse_invoice_pdf(temp_path)
         temp_path.unlink(missing_ok=True)
 
         products = parsed.get("products", [])
@@ -260,7 +271,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def handle_extra_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка ввода даты, комментария (многошаговый flow после PDF)."""
+    """Обработка ввода даты, комментария, названия товара (многошаговый flow)."""
     if not update.message or not update.message.text:
         return
     step = context.user_data.get("pending_step")
@@ -268,6 +279,9 @@ async def handle_extra_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     text = (update.message.text or "").strip()
+
+    if await handle_add_name_input(text, update, context):
+        return
 
     if step == PENDING_STEP_EDIT_NUMBER:
         try:

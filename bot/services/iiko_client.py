@@ -163,8 +163,79 @@ class IikoClient:
                 params={"key": token, "revisionFrom": -1},
             )
             resp.raise_for_status()
+            self._raw_products_xml = resp.text
             self._products = self._parse_products_xml(resp.text)
             return self._products
+
+    async def get_product_groups(self) -> list[dict]:
+        """Возвращает список групп (категорий) товаров из номенклатуры."""
+        if self._use_stub:
+            return []
+        await self.get_products()
+        xml_text = getattr(self, "_raw_products_xml", None)
+        if not xml_text:
+            return []
+        root = ET.fromstring(xml_text)
+        groups = []
+        for product in root.findall(".//productDto"):
+            pt = (product.findtext("productType") or "").strip().lower()
+            if pt not in self._PRODUCT_GROUP_TYPES:
+                continue
+            prod_id = (product.findtext("id") or "").strip()
+            name = (product.findtext("name") or "").strip()
+            if not name or not prod_id:
+                continue
+            if self._is_excluded_group(name):
+                continue
+            groups.append({"id": prod_id, "name": name})
+        groups.sort(key=lambda g: g["name"].lower())
+        return groups
+
+    async def create_product(
+        self,
+        name: str,
+        *,
+        parent_id: str,
+        main_unit: str = "кг",
+        product_type: str = "GOODS",
+    ) -> dict:
+        """
+        Создаёт новый товар в номенклатуре iiko через /resto/api/products/import.
+        Возвращает {"name": ..., "status": "ok"} при успехе.
+        """
+        if self._use_stub:
+            raise ValueError("iikoServer не настроен. Укажите URL, логин и пароль в .env")
+
+        token = await self.get_token()
+
+        doc = Element("productDtoes")
+        p = SubElement(doc, "productDto")
+        SubElement(p, "name").text = name
+        SubElement(p, "productType").text = product_type
+        SubElement(p, "mainUnit").text = main_unit
+        SubElement(p, "parentId").text = parent_id
+
+        xml_body = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            + tostring(doc, encoding="unicode").encode("utf-8")
+        )
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{self.server_url}/resto/api/products/import",
+                params={"key": token},
+                content=xml_body,
+                headers={"Content-Type": "application/xml"},
+            )
+            if resp.status_code >= 400:
+                body = (resp.text or "").strip()[:400]
+                if "<" in body:
+                    body = re.sub(r"<[^>]+>", " ", body)
+                body = " ".join(body.split())
+                raise ValueError(f"iiko вернул {resp.status_code}: {body or '(пусто)'}")
+
+        self._products = None
+        return {"name": name, "status": "ok"}
 
     _SKIP_WORDS = {"для", "или", "и", "в", "на", "с", "по", "из", "от", "до", "без"}
 
