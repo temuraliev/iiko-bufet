@@ -16,6 +16,7 @@ from bot.keyboards import (
     warehouse_keyboard,
     product_pick_keyboard,
     document_type_keyboard,
+    inline_unit_keyboard,
 )
 from config import TEMP_DIR, IIKO_DEFAULT_STORE_ID
 
@@ -318,8 +319,14 @@ async def handle_extra_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         iiko = IikoClient()
         matches = await iiko.search_product(text, limit=10)
         if not matches:
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Создать новый товар в iiko", callback_data=f"inline_create:{idx}")],
+                [InlineKeyboardButton("❌ Отмена", callback_data="cancel_edit")],
+            ])
             await update.message.reply_text(
-                "❌ Ничего не найдено. Введите другой поисковый запрос или «отмена» для выхода:"
+                "❌ Ничего не найдено. Введите другой запрос, создайте товар или нажмите «Отмена»:",
+                reply_markup=kb,
             )
             return
         context.user_data["edit_search_matches"] = matches

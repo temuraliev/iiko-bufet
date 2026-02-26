@@ -34,6 +34,12 @@ from bot.handlers.add_product import (
     handle_add_group_choice,
     handle_add_confirm,
     handle_add_cancel,
+    handle_inline_create,
+    handle_inline_unit_choice,
+    handle_inline_groups_page,
+    handle_inline_group_choice,
+    handle_inline_confirm,
+    handle_inline_cancel,
 )
 
 logging.basicConfig(
@@ -101,6 +107,12 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(handle_add_groups_page, pattern="^add_groups_page:"))
     app.add_handler(CallbackQueryHandler(handle_add_confirm, pattern="^add_confirm$"))
     app.add_handler(CallbackQueryHandler(handle_add_cancel, pattern="^add_cancel$"))
+    app.add_handler(CallbackQueryHandler(handle_inline_create, pattern="^inline_create:"))
+    app.add_handler(CallbackQueryHandler(handle_inline_unit_choice, pattern="^inline_unit:"))
+    app.add_handler(CallbackQueryHandler(handle_inline_group_choice, pattern="^inline_group:"))
+    app.add_handler(CallbackQueryHandler(handle_inline_groups_page, pattern="^inline_groups_page:"))
+    app.add_handler(CallbackQueryHandler(handle_inline_confirm, pattern="^inline_confirm$"))
+    app.add_handler(CallbackQueryHandler(handle_inline_cancel, pattern="^inline_cancel$"))
 
     logger.info("Bot starting...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
