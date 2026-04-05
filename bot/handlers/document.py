@@ -480,12 +480,7 @@ async def handle_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["pending_step"] = PENDING_STEP_EDIT_NUMBER
     n = len(products)
     chat_id = update.effective_chat.id
-    for mid in context.user_data.get("pending_message_ids", []):
-        try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
-        except Exception:
-            pass
-    context.user_data.pop("pending_message_ids", None)
+    # Мы не удаляем сообщения (список товаров), чтобы он оставался перед глазами пользователя
     await context.bot.send_message(
         chat_id=chat_id,
         text=f"✏️ Введите номер товара для исправления (1–{n}):",

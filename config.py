@@ -58,6 +58,7 @@ ALLOWED_USERNAMES: set[str] = {
     "gonzo_daud",
     "fantom1934",
     "volnik_343",
+    "awarawen",
 }
 
 # Temporary files
