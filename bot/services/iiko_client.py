@@ -41,7 +41,7 @@ class IikoClient:
     _PRODUCT_GROUP_TYPES = {"products", "productgroup"}
 
     # Только эти типы — реальные товары, которые можно добавить в приходную накладную
-    _VALID_PRODUCT_TYPES = {"goods", "dish", "prepared", "service", "modifier"}
+    _VALID_PRODUCT_TYPES = {"goods"}
 
     # Папки, которые полностью игнорируем при поиске (товары из них не показываются)
     _EXCLUDED_GROUP_NAMES = (
